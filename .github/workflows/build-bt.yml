@@ -62,26 +62,8 @@ jobs:
           cat arch/arm64/boot/Image.gz $(find arch/arm64/boot/dts -name '*.dtb') > /tmp/Image.gz-dtb
           ls -la /tmp/Image.gz-dtb
 
-      - name: Repack boot image
-        run: |
-          cp /tmp/Image.gz-dtb .
-          cp extra/ramdisk.gz .
-          wget -q https://raw.githubusercontent.com/osm0sis/mkbootimg/master/mkbootimg.py -O mkbootimg.py
-          python3 mkbootimg.py \
-            --kernel Image.gz-dtb \
-            --ramdisk ramdisk.gz \
-            --cmdline "androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x237 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 boot_cpus=0-5 loop.max_part=7 dwc3_msm.hvdcp_max_current=1500 dwc3_msm.prop_chg_detect=Y coherent_pool=2M swiotlb=2048 buildvariant=userdebug" \
-            --base 0x00000000 \
-            --kernel_offset 0x00008000 \
-            --ramdisk_offset 0x01000000 \
-            --tags_offset 0x00000100 \
-            --pagesize 4096 \
-            --os_version 11.0.0 --os_patch_level 2024-02-05 \
-            -o new-boot.img
-          ls -la new-boot.img
-
-      - name: Upload boot image
+      - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
-          name: new-boot
-          path: new-boot.img
+          name: kernel-dtb
+          path: /tmp/Image.gz-dtb

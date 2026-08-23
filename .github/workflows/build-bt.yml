@@ -19,6 +19,11 @@ jobs:
           ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 0
 
+      - name: Patch broken MODULE_DEVICE_TABLE macro
+        run: |
+          sed -i 's/MODULE_GENERIC_TABLE(type##__##name##_device, name)/MODULE_GENERIC_TABLE(type##_device, name)/' include/linux/module.h
+          grep -n 'MODULE_GENERIC_TABLE(type' include/linux/module.h
+
       - name: Configure
         run: |
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-

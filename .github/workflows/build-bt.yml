@@ -6,17 +6,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: ubuntu:20.04
     steps:
+      - name: Install toolchain
+        run: |
+          apt-get update
+          apt-get install -y git bc bison flex libssl-dev gcc-aarch64-linux-gnu
+
       - name: Checkout kernel at device commit
         uses: actions/checkout@v4
         with:
           ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 0
-
-      - name: Install toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev
 
       - name: Configure
         run: |

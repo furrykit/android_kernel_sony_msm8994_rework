@@ -43,6 +43,7 @@ jobs:
             -e BT \
             -e BT_HCIBTUSB \
             -e BT_BCM \
+            -e BT_ATH3K \
             -e BT_HCIVHCI \
             -e USB_SUPPORT \
             -e USB_ARCH_HAS_HCD \

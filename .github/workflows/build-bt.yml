@@ -10,7 +10,7 @@ jobs:
       - name: Checkout kernel at device commit
         uses: actions/checkout@v4
         with:
-          ref: 39a89dea6fa
+          ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 0
 
       - name: Install toolchain

@@ -34,9 +34,10 @@ jobs:
       - name: Build modules
         run: |
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- M=drivers/bluetooth modules
-          find drivers/bluetooth -name '*.ko' -exec cp {} . \; || true
-          ls -la *.ko || find . -name '*.ko'
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- prepare
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules
+          find . -name '*.ko' | grep bluetooth | xargs -I{} cp {} . || true
+          ls -la *.ko || find . -name '*.ko' | head
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

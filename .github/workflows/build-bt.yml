@@ -23,6 +23,9 @@ jobs:
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make ARCH=arm64 kitakami_satsuki_defconfig
           scripts/config --file .config \
+            -e MODULES \
+            -e MODULE_UNLOAD \
+            -e MODULE_UNLOAD_FREE \
             -e BT \
             -m BT_HCIBTUSB \
             -m BT_BCM \

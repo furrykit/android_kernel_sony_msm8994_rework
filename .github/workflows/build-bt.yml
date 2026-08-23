@@ -34,8 +34,7 @@ jobs:
       - name: Build modules
         run: |
           export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules SUBDIRS=drivers/bluetooth
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- M=drivers/bluetooth modules
           find drivers/bluetooth -name '*.ko' -exec cp {} . \; || true
           ls -la *.ko || find . -name '*.ko'
 

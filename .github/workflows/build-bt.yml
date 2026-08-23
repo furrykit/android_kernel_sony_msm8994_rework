@@ -59,7 +59,7 @@ jobs:
           make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=aarch64-linux-gnu- -j2 Image.gz dtbs
           ls -la arch/arm64/boot/Image.gz
           find arch/arm64/boot/dts -name '*.dtb' | wc -l
-          find arch/arm64/boot/dts -name '*.dtb' -name '*satsuki*' > /tmp/dtblist.txt
+          find -L arch/arm64/boot/dts -name '*.dtb' -name '*satsuki*' > /tmp/dtblist.txt
           cat /tmp/dtblist.txt
           cat arch/arm64/boot/Image.gz $(cat /tmp/dtblist.txt) > /tmp/Image.gz-dtb
           ls -la /tmp/Image.gz-dtb

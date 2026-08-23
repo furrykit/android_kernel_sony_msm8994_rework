@@ -31,8 +31,13 @@ jobs:
             -m BT_BCM \
             -m BT_HCIVHCI \
             -e USB_SUPPORT \
-            -e USB
+            -e USB_ARCH_HAS_HCD \
+            -e USB \
+            -e USB_EHCI_HCD \
+            -e USB_XHCI_HCD \
+            -e USB_OTG
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+          grep -E '^CONFIG_(MODULES|BT|USB)' .config | head -30
 
       - name: Build modules
         run: |

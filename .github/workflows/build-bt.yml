@@ -11,7 +11,7 @@ jobs:
       - name: Install toolchain
         run: |
           apt-get update
-          apt-get install -y git bc bison flex libssl-dev gcc-aarch64-linux-gnu
+          apt-get install -y git make gcc bc bison flex libssl-dev gcc-aarch64-linux-gnu
 
       - name: Checkout kernel at device commit
         uses: actions/checkout@v4

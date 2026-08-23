@@ -1,4 +1,4 @@
-name: Build BT modules
+name: Build full kernel
 
 on:
   workflow_dispatch:
@@ -11,51 +11,76 @@ jobs:
       - name: Install toolchain
         run: |
           apt-get update
-          apt-get install -y git make gcc bc bison flex libssl-dev gcc-aarch64-linux-gnu
+          apt-get install -y git make gcc bc bison flex libssl-dev gcc-aarch64-linux-gnu xz-utils wget
 
       - name: Checkout kernel at device commit
         uses: actions/checkout@v4
         with:
           ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 0
+          path: kernel
+
+      - name: Get ramdisk from branch tip
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-19.0
+          path: extra
+          sparse-checkout: |
+            ramdisk.gz
+          sparse-checkout-cone-mode: false
 
       - name: Patch broken MODULE_DEVICE_TABLE macro
         run: |
-          sed -i 's/MODULE_GENERIC_TABLE(type##__##name##_device, name)/MODULE_GENERIC_TABLE(type##_device, name)/' include/linux/module.h
-          grep -n 'MODULE_GENERIC_TABLE(type' include/linux/module.h
+          sed -i 's/MODULE_GENERIC_TABLE(type##__##name##_device, name)/MODULE_GENERIC_TABLE(type##_device, name)/' kernel/include/linux/module.h
 
       - name: Configure
+        working-directory: kernel
         run: |
-          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
           make ARCH=arm64 kitakami_satsuki_defconfig
           scripts/config --file .config \
             -e MODULES \
             -e MODULE_UNLOAD \
-            -e MODULE_UNLOAD_FREE \
             -e BT \
-            -m BT_HCIBTUSB \
-            -m BT_BCM \
-            -m BT_HCIVHCI \
+            -e BT_HCIBTUSB \
+            -e BT_BCM \
+            -e BT_HCIVHCI \
             -e USB_SUPPORT \
             -e USB_ARCH_HAS_HCD \
             -e USB \
             -e USB_EHCI_HCD \
-            -e USB_XHCI_HCD \
-            -e USB_OTG
+            -e USB_XHCI_HCD
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
-          grep -E '^CONFIG_(MODULES|BT|USB)' .config | head -30
+          grep -E '^CONFIG_(MODULES|BT_HCIBTUSB|BT_HCIVHCI|USB=)' .config
 
-      - name: Build modules
+      - name: Build kernel
+        working-directory: kernel
         run: |
-          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=aarch64-linux-gnu- prepare
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=aarch64-linux-gnu- modules
-          find . -name '*.ko' | grep bluetooth | xargs -I{} cp {} . || true
-          ls -la *.ko || find . -name '*.ko' | head
+          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=aarch64-linux-gnu- -j2 Image.gz dtbs
+          ls -la arch/arm64/boot/Image.gz
+          find arch/arm64/boot/dts -name '*.dtb' | wc -l
+          cat arch/arm64/boot/Image.gz $(find arch/arm64/boot/dts -name '*.dtb') > /tmp/Image.gz-dtb
+          ls -la /tmp/Image.gz-dtb
 
-      - name: Upload artifacts
+      - name: Repack boot image
+        run: |
+          cp /tmp/Image.gz-dtb .
+          cp extra/ramdisk.gz .
+          wget -q https://raw.githubusercontent.com/osm0sis/mkbootimg/master/mkbootimg.py -O mkbootimg.py
+          python3 mkbootimg.py \
+            --kernel Image.gz-dtb \
+            --ramdisk ramdisk.gz \
+            --cmdline "androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x237 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 boot_cpus=0-5 loop.max_part=7 dwc3_msm.hvdcp_max_current=1500 dwc3_msm.prop_chg_detect=Y coherent_pool=2M swiotlb=2048 buildvariant=userdebug" \
+            --base 0x00000000 \
+            --kernel_offset 0x00008000 \
+            --ramdisk_offset 0x01000000 \
+            --tags_offset 0x00000100 \
+            --pagesize 4096 \
+            --os_version 11.0.0 --os_patch_level 2024-02-05 \
+            -o new-boot.img
+          ls -la new-boot.img
+
+      - name: Upload boot image
         uses: actions/upload-artifact@v4
         with:
-          name: bt-modules
-          path: |
-            *.ko
+          name: new-boot
+          path: new-boot.img

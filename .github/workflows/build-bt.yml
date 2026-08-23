@@ -1,0 +1,47 @@
+name: Build BT modules
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kernel at device commit
+        uses: actions/checkout@v4
+        with:
+          ref: 39a89dea6fa
+          fetch-depth: 0
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev
+
+      - name: Configure
+        run: |
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make ARCH=arm64 kitakami_satsuki_defconfig
+          scripts/config --file .config \
+            -e BT \
+            -m BT_HCIBTUSB \
+            -m BT_BCM \
+            -m BT_HCIVHCI \
+            -e USB_SUPPORT \
+            -e USB
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+
+      - name: Build modules
+        run: |
+          export ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules SUBDIRS=drivers/bluetooth
+          find drivers/bluetooth -name '*.ko' -exec cp {} . \; || true
+          ls -la *.ko || find . -name '*.ko'
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bt-modules
+          path: |
+            *.ko

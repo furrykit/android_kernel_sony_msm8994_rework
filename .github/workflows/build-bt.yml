@@ -11,7 +11,8 @@ jobs:
       - name: Install toolchain
         run: |
           apt-get update
-          apt-get install -y git make gcc bc bison flex libssl-dev gcc-aarch64-linux-gnu xz-utils wget
+          apt-get install -y git make gcc bc bison flex libssl-dev xz-utils wget
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git /opt/gcc49
 
       - name: Checkout kernel at device commit
         uses: actions/checkout@v4
@@ -41,13 +42,13 @@ jobs:
             -e MODULES \
             -e MODULE_UNLOAD \
             -e BT_HCIVHCI
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+          make ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- olddefconfig
           grep -E '^CONFIG_(MODULES|BT_HCIVHCI)' .config
 
       - name: Build kernel
         working-directory: kernel
         run: |
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=aarch64-linux-gnu- -j2 Image.gz dtbs
+          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j2 Image.gz dtbs
           ls -la arch/arm64/boot/Image.gz
           find arch/arm64/boot/dts -name '*.dtb' | wc -l
           find -L arch/arm64/boot/dts -name '*.dtb' -name '*satsuki*' > /tmp/dtblist.txt

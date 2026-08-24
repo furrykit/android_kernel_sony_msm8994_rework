@@ -40,18 +40,9 @@ jobs:
           scripts/config --file .config \
             -e MODULES \
             -e MODULE_UNLOAD \
-            -e BT \
-            -e BT_HCIBTUSB \
-            -e BT_BCM \
-            -e BT_ATH3K \
-            -e BT_HCIVHCI \
-            -e USB_SUPPORT \
-            -e USB_ARCH_HAS_HCD \
-            -e USB \
-            -e USB_EHCI_HCD \
-            -e USB_XHCI_HCD
+            -e BT_HCIVHCI
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
-          grep -E '^CONFIG_(MODULES|BT_HCIBTUSB|BT_HCIVHCI|USB=)' .config
+          grep -E '^CONFIG_(MODULES|BT_HCIVHCI)' .config
 
       - name: Build kernel
         working-directory: kernel

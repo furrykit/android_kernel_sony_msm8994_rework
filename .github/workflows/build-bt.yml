@@ -41,8 +41,9 @@ jobs:
         working-directory: kernel
         run: |
           make ARCH=arm64 kitakami_satsuki_defconfig
+          scripts/config --file .config -e BT_HCIVHCI
           make ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- olddefconfig
-          grep -E '^CONFIG_(MODULES|BT_HCIVHCI)' .config || echo 'zero-delta config (no modules)'
+          grep -E '^CONFIG_BT_HCIVHCI' .config
 
       - name: Build kernel
         working-directory: kernel

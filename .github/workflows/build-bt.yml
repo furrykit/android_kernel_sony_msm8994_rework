@@ -1,4 +1,4 @@
-name: Build full kernel
+name: Build NetHunter Kernel (satsuki)
 
 on:
   workflow_dispatch:
@@ -8,54 +8,84 @@ jobs:
     runs-on: ubuntu-latest
     container: ubuntu:20.04
     steps:
-      - name: Install toolchain
+      - name: Install toolchain & deps
         run: |
           apt-get update
           apt-get install -y git make gcc bc bison flex libssl-dev xz-utils wget python3
           ln -sf /usr/bin/python3 /usr/bin/python
           git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git /opt/gcc49
-          ls /opt/gcc49/bin | head -5
           /opt/gcc49/bin/aarch64-linux-android-gcc --version | head -1
 
-      - name: Checkout kernel at device commit
+      - name: Checkout kernel source at commit 39a89de
         uses: actions/checkout@v4
         with:
           ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 0
           path: kernel
 
-      - name: Get ramdisk from branch tip
-        uses: actions/checkout@v4
-        with:
-          ref: lineage-19.0
-          path: extra
-          sparse-checkout: |
-            ramdisk.gz
-          sparse-checkout-cone-mode: false
-
       - name: Patch broken MODULE_DEVICE_TABLE macro
         run: |
           sed -i 's/MODULE_GENERIC_TABLE(type##__##name##_device, name)/MODULE_GENERIC_TABLE(type##_device, name)/' kernel/include/linux/module.h
 
-      - name: Configure
+      - name: Configure kernel with Wi-Fi & BT drivers
         working-directory: kernel
         run: |
-          make ARCH=arm64 KBUILD_DIFFCONFIG=satsuki_diffconfig CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- kitakami_satsuki_defconfig
+          export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
+          make kitakami_satsuki_defconfig
           scripts/config --file .config \
             -e MODULES \
             -e MODULE_UNLOAD \
-            -e BT_HCIVHCI
-          make ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- olddefconfig
-          grep -E '^CONFIG_(MODULES|BT_HCIVHCI|MACH_SONY_SATSUKI|MEMCG=|BUILD_ARM64_APPENDED)' .config
+            -e MODULE_FORCE_UNLOAD \
+            -e MODVERSIONS \
+            -e BT \
+            -e BT_RFCOMM \
+            -e BT_BNEP \
+            -e BT_HIDP \
+            -y BT_HCIBTUSB \
+            -y BT_HCIBTUSB_BCM \
+            -y BT_HCIBTUSB_RTL \
+            -y BT_HCIUART \
+            -y BT_HCIVHCI \
+            -e WIRELESS \
+            -e CFG80211 \
+            -e CFG80211_WEXT \
+            -e MAC80211 \
+            -e MAC80211_RC_MINSTREL \
+            -e MAC80211_RC_DEFAULT_MINSTREL \
+            -e NETDEVICES \
+            -e WLAN \
+            -y RT2X00 \
+            -y RT2800USB \
+            -y RT2800USB_RT33XX \
+            -y RT2800USB_RT35XX \
+            -y RT2800USB_RT53XX \
+            -y RT2X00_LIB \
+            -y RT2X00_LIB_USB \
+            -y RT2X00_LIB_FIRMWARE \
+            -y RT2X00_LIB_CRYPTO \
+            -y ATH9K_HTC \
+            -y RTL8187 \
+            -y RTL8XXXU \
+            -e PACKET \
+            -e NETFILTER
+          make olddefconfig
+          echo "=== VERIFYING DRIVER FLAGS ==="
+          grep -E '^CONFIG_(MODULES|BT_|RT2|MAC80211|CFG80211|ATH9K|RTL8)' .config
 
-      - name: Build kernel
+      - name: Compile Kernel Image & Modules
         working-directory: kernel
         run: |
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j2 Image.gz-dtb
-          ls -la arch/arm64/boot/Image.gz-dtb
+          export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
+          make HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" -j$(nproc) Image.gz-dtb
+          make HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" -j$(nproc) modules || true
+          mkdir -p /tmp/out/modules
+          find . -name '*.ko' -exec cp {} /tmp/out/modules/ \; || true
+          cp arch/arm64/boot/Image.gz-dtb /tmp/out/Image.gz-dtb
+          ls -lh /tmp/out/Image.gz-dtb
+          ls -la /tmp/out/modules/
 
-      - name: Upload kernel image
+      - name: Upload Kernel Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-dtb
-          path: kernel/arch/arm64/boot/Image.gz-dtb
+          name: nethunter-kernel-satsuki
+          path: /tmp/out/

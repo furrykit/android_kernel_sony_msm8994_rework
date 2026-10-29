@@ -16,10 +16,9 @@ jobs:
           git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git /opt/gcc49
           /opt/gcc49/bin/aarch64-linux-android-gcc --version | head -1
 
-      - name: Checkout kernel source at commit 39a89de
+      - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
           fetch-depth: 1
           path: kernel
 

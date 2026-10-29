@@ -298,6 +298,8 @@ struct dwc3_msm {
 #define USB_ID_WAKE_LOCK_TIMEOUT	(3 * HZ)
 
 static struct usb_ext_notification *usb_ext;
+static int dwc3_force_host_mode;
+static struct dwc3_msm *global_mdwc;
 
 #define MHL_SWITCH_PORT_USB1	0
 #define MHL_SWITCH_PORT_USB2	1
@@ -305,6 +307,8 @@ static struct usb_ext_notification *usb_ext;
 
 static void dwc3_select_mhl_switch(struct dwc3_msm *mdwc, int port)
 {
+	/* Force permanently to USB1 (Qualcomm PHY) */
+	port = MHL_SWITCH_PORT_USB1;
 	if (!gpio_is_valid(mdwc->mhl_switch_sel1_gpio) ||
 				!gpio_is_valid(mdwc->mhl_switch_sel2_gpio)) {
 		dev_dbg(mdwc->dev, "%s: mhl switch sel gpio is not set\n",
@@ -2860,7 +2864,6 @@ static void dwc3_ext_notify_online(void *ctx, int on)
 static void dwc3_id_work(struct work_struct *w)
 {
 	struct dwc3_msm *mdwc = container_of(w, struct dwc3_msm, id_work);
-	int ret;
 
 	if (factorymode) {
 		dev_info(mdwc->dev, "factory mode selected, ignore id=%d\n",
@@ -2868,75 +2871,18 @@ static void dwc3_id_work(struct work_struct *w)
 		return;
 	}
 
-	/* Give external client a chance to handle */
-	if (!mdwc->ext_inuse && usb_ext) {
-		if (mdwc->pmic_id_irq)
-			disable_irq(mdwc->pmic_id_irq);
-		else
-			mdwc->ext_switching = true;
+	/* Always lock MHL switch to USB1 */
+	dwc3_select_mhl_switch(mdwc, MHL_SWITCH_PORT_USB1);
 
-		if (mdwc->ext_xceiv.bsv || mdwc->ext_bsv) {
-			if ((mdwc->charger.chg_type == DWC3_DCP_CHARGER) &&
-							!mdwc->id_state) {
-				dev_info(mdwc->dev, "request APSD rerun\n");
-				dwc3_select_mhl_switch(mdwc,
-							MHL_SWITCH_PORT_USB2);
-				somc_chg_apsd_rerun_request();
-			}
-
-			dev_info(mdwc->dev,
-				"%s: interpret ID as ID_GND, bsv=%d, id=%d\n",
-				__func__, mdwc->ext_xceiv.bsv, mdwc->id_state);
-			ret = usb_ext->notify(usb_ext->ctxt, DWC3_ID_GROUND,
-					dwc3_ext_notify_online, mdwc);
-		} else {
-			ret = usb_ext->notify(usb_ext->ctxt, mdwc->id_state,
-					dwc3_ext_notify_online, mdwc);
-		}
-		dev_info(mdwc->dev, "%s: external handler returned %d\n",
-			__func__, ret);
-
-		if (mdwc->pmic_id_irq) {
-			unsigned long flags;
-			local_irq_save(flags);
-			/* ID may have changed while IRQ disabled; update it */
-			mdwc->id_state = !!irq_read_line(mdwc->pmic_id_irq);
-			local_irq_restore(flags);
-			enable_irq(mdwc->pmic_id_irq);
-		} else {
-			mdwc->ext_switching = false;
-		}
-
-		mdwc->ext_inuse = (ret == 0);
-	}
-
-	if (mdwc->ext_inuse) {
-		/* MHL cable: stop peripheral */
-		mdwc->ext_xceiv.id = DWC3_ID_FLOAT;
-		mdwc->ext_xceiv.bsv = false;
-	} else if (mdwc->ext_xceiv.bsv || mdwc->ext_bsv) {
-		if (mdwc->ext_xceiv.id == DWC3_ID_FLOAT) {
-			dev_dbg(mdwc->dev, "%s: ignore FLOAT\n", __func__);
-			return;
-		}
-		dev_info(mdwc->dev, "%s: force FLOAT when bsv\n", __func__);
-		mdwc->ext_xceiv.id = DWC3_ID_FLOAT;
+	/* Determine ID state: Ground (Host) or Float (Peripheral) */
+	if (dwc3_force_host_mode || !mdwc->id_state) {
+		dev_info(mdwc->dev, "%s: Host mode active (force=%d, id_state=%d, bsv=%d)\n",
+			__func__, dwc3_force_host_mode, mdwc->id_state, mdwc->ext_xceiv.bsv);
+		mdwc->ext_xceiv.id = DWC3_ID_GROUND;
 	} else {
-		/* A cable: start host */
-		mdwc->ext_xceiv.id = mdwc->id_state;
-		dev_info(mdwc->dev, "%s: set id=%d\n", __func__,
-							mdwc->ext_xceiv.id);
-		if (!mdwc->ext_xceiv.id) {
-			/* connect D+- to phy when detect ID_GND */
-			dwc3_select_mhl_switch(mdwc, MHL_SWITCH_PORT_USB1);
-		} else if (!mdwc->ext_xceiv.bsv) {
-			/* ground D+- when detect ID_FLOAT.
-			 * but do not ground it if VBUS is high because the
-			 * charger detection may be using it.
-			 * D+- will be grounded when VBUS is deasserted.
-			 */
-			dwc3_select_mhl_switch(mdwc, MHL_SWITCH_PORT_USB2);
-		}
+		dev_info(mdwc->dev, "%s: Float/Peripheral mode (id_state=%d, bsv=%d)\n",
+			__func__, mdwc->id_state, mdwc->ext_xceiv.bsv);
+		mdwc->ext_xceiv.id = DWC3_ID_FLOAT;
 	}
 
 	dbg_event(0xFF, "RW (id)", 0);
@@ -3101,6 +3047,29 @@ static ssize_t adc_enable_store(struct device *dev,
 
 	return -EINVAL;
 }
+
+static ssize_t force_host_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", dwc3_force_host_mode);
+}
+
+static ssize_t force_host_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	int val;
+	if (sscanf(buf, "%d", &val) != 1)
+		return -EINVAL;
+
+	dwc3_force_host_mode = !!val;
+	dev_info(dev, "%s: force_host set to %d\n", __func__, dwc3_force_host_mode);
+	if (global_mdwc) {
+		queue_work(system_nrt_wq, &global_mdwc->id_work);
+	}
+	return size;
+}
+
+static DEVICE_ATTR(force_host, S_IRUGO | S_IWUSR, force_host_show, force_host_store);
 
 static DEVICE_ATTR(adc_enable, S_IRUGO | S_IWUSR, adc_enable_show,
 		adc_enable_store);
@@ -3832,6 +3801,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		enable_irq_wake(mdwc->pmic_id_irq);
 	}
 
+		global_mdwc = mdwc;
+	device_create_file(&pdev->dev, &dev_attr_force_host);
+
 	msm_bam_set_usb_dev(mdwc->dev);
 
 	return 0;
@@ -3879,6 +3851,7 @@ static int dwc3_msm_remove(struct platform_device *pdev)
 	struct dwc3_msm	*mdwc = platform_get_drvdata(pdev);
 	int ret_pm;
 
+		device_remove_file(&pdev->dev, &dev_attr_force_host);
 	if (cpu_to_affin)
 		unregister_cpu_notifier(&mdwc->dwc3_cpu_notifier);
 

@@ -20,33 +20,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: 39a89dea6fa300c2e117da1d601da7b3d13b7be4
-          fetch-depth: 0
+          fetch-depth: 1
           path: kernel
 
-      - name: Patch broken MODULE_DEVICE_TABLE macro
-        run: |
-          sed -i 's/MODULE_GENERIC_TABLE(type##__##name##_device, name)/MODULE_GENERIC_TABLE(type##_device, name)/' kernel/include/linux/module.h
-
-      - name: Configure kernel with Wi-Fi & BT drivers
+      - name: Configure kernel with built-in Wi-Fi & BT drivers (no modules)
         working-directory: kernel
         run: |
           export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
-          make ARCH=arm64 KBUILD_DIFFCONFIG=satsuki_diffconfig CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- kitakami_satsuki_defconfig
+          make ARCH=arm64 kitakami_satsuki_defconfig
           scripts/config --file .config \
-            -e MODULES \
-            -e MODULE_UNLOAD \
-            -e MODULE_FORCE_UNLOAD \
-            -e MODVERSIONS \
-            -e BT \
-            -e BT_RFCOMM \
-            -e BT_BNEP \
-            -e BT_HIDP \
-            -e BT_HCIBTUSB \
-            -e BT_HCIBTUSB_BCM \
-            -e BT_HCIBTUSB_RTL \
-            -e BT_HCIUART \
-            -e BT_HCIVHCI \
-            -e BT_ATH3K \
             -e WIRELESS \
             -e CFG80211 \
             -e CFG80211_WEXT \
@@ -67,23 +49,31 @@ jobs:
             -e ATH9K_HTC \
             -e RTL8187 \
             -e RTL8XXXU \
+            -e BT \
+            -e BT_RFCOMM \
+            -e BT_BNEP \
+            -e BT_HIDP \
+            -e BT_HCIBTUSB \
+            -e BT_HCIBTUSB_BCM \
+            -e BT_HCIBTUSB_RTL \
+            -e BT_HCIVHCI \
+            -e BT_ATH3K \
             -e PACKET \
             -e NETFILTER
           make ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- olddefconfig
-          echo "=== VERIFYING DRIVER FLAGS ==="
+          echo "=== VERIFYING MONOLITHIC DRIVER FLAGS ==="
           grep -E '^CONFIG_(MODULES|BT_|RT2|MAC80211|CFG80211|ATH9K|RTL8)' .config
+          grep -E '^# CONFIG_MODULES is not set' .config || echo "WARNING: MODULES status unexpected"
 
-      - name: Compile Kernel Image & Modules
+      - name: Compile Kernel Image & Image.gz-dtb
         working-directory: kernel
         run: |
           export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j$(nproc) Image.gz-dtb
-          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j$(nproc) modules || true
-          mkdir -p /tmp/out/modules
-          find . -name '*.ko' -exec cp {} /tmp/out/modules/ \; || true
+          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j$(nproc) Image Image.gz-dtb
+          mkdir -p /tmp/out
+          cp arch/arm64/boot/Image /tmp/out/Image
           cp arch/arm64/boot/Image.gz-dtb /tmp/out/Image.gz-dtb
-          ls -lh /tmp/out/Image.gz-dtb
-          ls -la /tmp/out/modules/
+          ls -lh /tmp/out/
 
       - name: Upload Kernel Artifacts
         uses: actions/upload-artifact@v4

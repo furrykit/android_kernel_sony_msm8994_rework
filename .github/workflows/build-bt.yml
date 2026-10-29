@@ -46,6 +46,7 @@ jobs:
             -e BT_HCIBTUSB_RTL \
             -e BT_HCIUART \
             -e BT_HCIVHCI \
+            -e BT_ATH3K \
             -e WIRELESS \
             -e CFG80211 \
             -e CFG80211_WEXT \

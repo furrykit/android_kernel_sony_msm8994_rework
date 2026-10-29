@@ -31,7 +31,7 @@ jobs:
         working-directory: kernel
         run: |
           export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
-          make kitakami_satsuki_defconfig
+          make ARCH=arm64 KBUILD_DIFFCONFIG=satsuki_diffconfig CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- kitakami_satsuki_defconfig
           scripts/config --file .config \
             -e MODULES \
             -e MODULE_UNLOAD \
@@ -41,11 +41,11 @@ jobs:
             -e BT_RFCOMM \
             -e BT_BNEP \
             -e BT_HIDP \
-            -y BT_HCIBTUSB \
-            -y BT_HCIBTUSB_BCM \
-            -y BT_HCIBTUSB_RTL \
-            -y BT_HCIUART \
-            -y BT_HCIVHCI \
+            -e BT_HCIBTUSB \
+            -e BT_HCIBTUSB_BCM \
+            -e BT_HCIBTUSB_RTL \
+            -e BT_HCIUART \
+            -e BT_HCIVHCI \
             -e WIRELESS \
             -e CFG80211 \
             -e CFG80211_WEXT \
@@ -54,21 +54,21 @@ jobs:
             -e MAC80211_RC_DEFAULT_MINSTREL \
             -e NETDEVICES \
             -e WLAN \
-            -y RT2X00 \
-            -y RT2800USB \
-            -y RT2800USB_RT33XX \
-            -y RT2800USB_RT35XX \
-            -y RT2800USB_RT53XX \
-            -y RT2X00_LIB \
-            -y RT2X00_LIB_USB \
-            -y RT2X00_LIB_FIRMWARE \
-            -y RT2X00_LIB_CRYPTO \
-            -y ATH9K_HTC \
-            -y RTL8187 \
-            -y RTL8XXXU \
+            -e RT2X00 \
+            -e RT2800USB \
+            -e RT2800USB_RT33XX \
+            -e RT2800USB_RT35XX \
+            -e RT2800USB_RT53XX \
+            -e RT2X00_LIB \
+            -e RT2X00_LIB_USB \
+            -e RT2X00_LIB_FIRMWARE \
+            -e RT2X00_LIB_CRYPTO \
+            -e ATH9K_HTC \
+            -e RTL8187 \
+            -e RTL8XXXU \
             -e PACKET \
             -e NETFILTER
-          make olddefconfig
+          make ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- olddefconfig
           echo "=== VERIFYING DRIVER FLAGS ==="
           grep -E '^CONFIG_(MODULES|BT_|RT2|MAC80211|CFG80211|ATH9K|RTL8)' .config
 
@@ -76,8 +76,8 @@ jobs:
         working-directory: kernel
         run: |
           export ARCH=arm64 CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android-
-          make HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" -j$(nproc) Image.gz-dtb
-          make HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" -j$(nproc) modules || true
+          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j$(nproc) Image.gz-dtb
+          make ARCH=arm64 HOSTCFLAGS="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fno-strict-aliasing -fcommon" CROSS_COMPILE=/opt/gcc49/bin/aarch64-linux-android- -j$(nproc) modules || true
           mkdir -p /tmp/out/modules
           find . -name '*.ko' -exec cp {} /tmp/out/modules/ \; || true
           cp arch/arm64/boot/Image.gz-dtb /tmp/out/Image.gz-dtb
